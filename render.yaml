@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: claude-tracker-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APIFY_API_TOKEN
+        sync: false
+      - key: CRON_HOUR
+        value: "9"
+      - key: CRON_MINUTE
+        value: "0"
+      - key: DATA_DIR
+        value: /opt/render/project/data
+      - key: LOG_LEVEL
+        value: INFO
+      - key: COLLECT_SECRET
+        sync: false
+    disk:
+      name: tweet-data
+      mountPath: /opt/render/project/data
+      sizeGB: 1
