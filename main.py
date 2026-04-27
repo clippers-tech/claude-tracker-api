@@ -786,6 +786,11 @@ class GenerateRequest(BaseModel):
     controversy_level: int
     cta_style: str
     niche: str
+    # NEW (additive, defaults to 'personal' so existing behavior is byte-identical):
+    # 'personal' = Rhys's @Rhyscryptoo voice (current default).
+    # 'company' = same viral formats and triggers, rewritten for @luminaclippers
+    #             with first-person plural (we / our team) instead of singular (i / my).
+    account_mode: str = "personal"
 
 
 GENERATE_SYSTEM_PROMPT = """You are an expert viral content ghostwriter optimized for X (Twitter) and LinkedIn algorithms. You generate ready-to-post content that maximizes algorithmic reach and engagement.
@@ -846,6 +851,61 @@ CRYPTO/WEB3 NICHE:
 - transformation: Before/after ("From $0 to $1M in 8 months")
 - curiosity_gap: Tease value ("The thing nobody talks about...")
 - pattern_interrupt: Unexpected opener ("Stop creating content.")
+"""
+
+
+# ---------------------------------------------------------------------------
+# Company Account Voice Layer (@luminaclippers)
+# ---------------------------------------------------------------------------
+# Appended to whichever base prompt is selected when account_mode == 'company'.
+# Mirrors Rhys's exact viral formats, triggers, and structure — only voice and
+# attribution change. Same hooks, same length rules, same reply mechanics, same
+# 8 viral formats, same 7 psychological triggers, same posting-time guidance.
+
+COMPANY_ACCOUNT_PROMPT_OVERRIDE = """
+
+===== ACCOUNT VOICE OVERRIDE: @luminaclippers (COMPANY ACCOUNT) =====
+This content is for the @luminaclippers brand account, written in the SAME
+viral style and using the SAME formats as Rhys's @Rhyscryptoo personal account,
+but with first-person PLURAL voice. The brand is run by a small founding team.
+
+VOICE RULES (mandatory, override any conflicting rule above):
+- First person plural: "we", "our", "our team", "us" — NEVER "i", "my", "me"
+  Wrong: "i built a google doc with every tool i use to run a clipping agency"
+  Right: "we built a google doc with every tool our team uses to run a clipping agency"
+- Authority cues attribute to the agency, not the founder:
+  Wrong: "18B+ views in my bio"
+  Right: "18B+ views across our agency" or "our 500+ active campaigns"
+- Asset drops are framed as team output:
+  Wrong: "i made you a free toolkit"
+  Right: "our team made a free toolkit"
+- Personal anecdotes ("i got fired", "i started this last year") are FORBIDDEN.
+  Replace with team/data observations:
+  Wrong: "i used to lose $5K a month on bad campaigns"
+  Right: "we used to lose $5K a month on bad campaigns before we built X"
+- Challenge / reply-trigger CTA language is preserved VERBATIM. "reply CLIP and
+  we'll DM it" still works — only the pronoun changes from "i'll" to "we'll".
+- Hot takes and contrarian opinions stay just as sharp — the brand can have
+  opinions. Frame them as the agency's view: "our take after running 500+
+  campaigns" instead of "my take".
+
+WHAT DOES NOT CHANGE (keep identical to personal-account output):
+- All 8 viral formats (challenge CTA, asset drop, A/B reveal, income shock,
+  contrarian, data reveal, loss frame, algorithm alert)
+- All 7 psychological triggers (curiosity gap, social proof, loss aversion,
+  contrarian, identity, novelty, asset)
+- Reply-trigger mechanic on EVERY tweet (one-word reply prompts win)
+- 71-100 char sweet spot for X singles, max 2 hashtags, no body links
+- Lowercase-leaning conversational tone with contractions
+- Specific numbers / dollar amounts / data in every post
+- Posting time guidance: 12:00-1:00 PM EST window
+
+SELF-CHECK BEFORE RETURNING:
+1. Do any of the generated posts contain "i ", "i'm", "i've", "i'll", "my ",
+   or "me " as a first-person singular pronoun? If yes — REWRITE.
+2. Does every post still have a reply trigger? If no — ADD ONE.
+3. Would this post sound natural coming from a brand account that 9.9K+
+   followers already trust? If no — REWRITE.
 """
 
 
@@ -1040,6 +1100,11 @@ async def generate_content(request: GenerateRequest):
         system_prompt = GENERATE_SYSTEM_PROMPT
         max_tokens = 4096
 
+    # --- Append company-account voice override if requested ---
+    # Layered so personal-mode behavior is byte-identical to before.
+    if request.account_mode == "company":
+        system_prompt = system_prompt + COMPANY_ACCOUNT_PROMPT_OVERRIDE
+
     if not is_article or non_article_platforms:
         # Build standard user message for non-article platforms
         metrics = request.tweet_metrics
@@ -1137,6 +1202,7 @@ Return as JSON with this structure:
             "controversy_level": request.controversy_level,
             "cta_style": request.cta_style,
             "niche": request.niche,
+            "account_mode": request.account_mode,
         },
     }
 
